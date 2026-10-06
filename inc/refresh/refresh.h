@@ -272,8 +272,13 @@ typedef enum ref_type_e
 {
     REF_TYPE_NONE = 0,
     REF_TYPE_GL,
-    REF_TYPE_VKPT
+    REF_TYPE_VKPT,
+    REF_TYPE_MTLPT
 } ref_type_t;
+
+// True for backends that path-trace the scene, which changes how the client
+// submits shells, beams and particles.
+#define REF_TYPE_IS_PATHTRACED(t) ((t) == REF_TYPE_VKPT || (t) == REF_TYPE_MTLPT)
 
 // called when the library is loaded
 extern ref_type_t  (*R_Init)(bool total);
@@ -356,6 +361,9 @@ void R_RegisterFunctionsGL(void);
 #endif
 #if REF_VKPT
 void R_RegisterFunctionsRTX(void);
+#endif
+#if REF_MTLPT
+void R_RegisterFunctionsMTL(void);
 #endif
 
 r_opengl_config_t *R_GetGLConfig(void);

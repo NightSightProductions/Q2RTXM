@@ -764,7 +764,7 @@ static void CL_AddPacketEntities(void)
                 else if (effects & EF_TRACKERTRAIL)
                     V_AddLight(ent.origin, 225, -1.0f, -1.0f, -1.0f);
 
-                if(cls.ref_type == REF_TYPE_VKPT)
+                if(REF_TYPE_IS_PATHTRACED(cls.ref_type))
                     base_entity_flags |= RF_VIEWERMODEL;    // only draw from mirrors
                 else
                     goto skip;
@@ -813,7 +813,7 @@ static void CL_AddPacketEntities(void)
         }
 
 		// in rtx mode, the base entity has the renderfx for shells
-		if ((effects & EF_COLOR_SHELL) && cls.ref_type == REF_TYPE_VKPT) {
+		if ((effects & EF_COLOR_SHELL) && REF_TYPE_IS_PATHTRACED(cls.ref_type)) {
 			renderfx = adjust_shell_fx(renderfx);
 			ent.flags |= renderfx;
 		}
@@ -845,7 +845,7 @@ static void CL_AddPacketEntities(void)
                 }
 
         // color shells generate a separate entity for the main model
-        if ((effects & EF_COLOR_SHELL) && cls.ref_type != REF_TYPE_VKPT) {
+        if ((effects & EF_COLOR_SHELL) && !REF_TYPE_IS_PATHTRACED(cls.ref_type)) {
 			renderfx = adjust_shell_fx(renderfx);
             ent.flags = renderfx | RF_TRANSLUCENT | base_entity_flags;
             ent.alpha = 0.30f;
@@ -881,7 +881,7 @@ static void CL_AddPacketEntities(void)
                 ent.flags = RF_TRANSLUCENT;
             }
 
-			if ((effects & EF_COLOR_SHELL) && cls.ref_type == REF_TYPE_VKPT) {
+			if ((effects & EF_COLOR_SHELL) && REF_TYPE_IS_PATHTRACED(cls.ref_type)) {
 				ent.flags |= renderfx;
 			}
 
@@ -1127,7 +1127,7 @@ static void CL_AddViewWeapon(void)
 	shell_flags = shell_effect_hack();
 
 	// same entity in rtx mode
-	if (cls.ref_type == REF_TYPE_VKPT) {
+	if (REF_TYPE_IS_PATHTRACED(cls.ref_type)) {
 		gun.flags |= shell_flags;
 	}
 
@@ -1138,7 +1138,7 @@ static void CL_AddViewWeapon(void)
     V_AddEntity(&gun);
 
 	// separate entity in non-rtx mode
-    if (shell_flags && cls.ref_type != REF_TYPE_VKPT) {
+    if (shell_flags && !REF_TYPE_IS_PATHTRACED(cls.ref_type)) {
         gun.alpha = 0.30f * cl_gunalpha->value;
         gun.flags |= shell_flags | RF_TRANSLUCENT;
         V_AddEntity(&gun);

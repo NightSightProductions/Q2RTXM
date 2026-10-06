@@ -17,7 +17,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "fog.h"
+#if REF_VKPT
 #include "vkpt.h"
+#else
+#include "../mtlpt/material_compat.h"
+#endif
 
 #include <string.h>
 

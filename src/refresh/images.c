@@ -350,7 +350,7 @@ STB_IMAGE LOADING
 
 static bool supports_extended_pixel_format(void)
 {
-	return cls.ref_type == REF_TYPE_VKPT;
+	return cls.ref_type == REF_TYPE_VKPT || cls.ref_type == REF_TYPE_MTLPT;
 }
 
 IMG_LOAD(STB)
@@ -1298,7 +1298,7 @@ load_img(const char *name, image_t *image)
         return ret;
     }
 
-#if USE_REF == REF_VKPT
+#if REF_VKPT || REF_MTLPT
 	image->pix_data = pic;
 #endif
 
@@ -1588,7 +1588,7 @@ image_t *IMG_Clone(image_t *image, const char* new_name)
 
     memcpy(new_image, image, sizeof(image_t));
 
-#if USE_REF == REF_VKPT
+#if REF_VKPT || REF_MTLPT
     size_t image_size = image->upload_width * image->upload_height * 4;
     if(image->pix_data != NULL)
     {

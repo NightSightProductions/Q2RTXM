@@ -250,7 +250,7 @@ void V_Flashlight(const entity_t *ent, const centity_state_t *cent_state)
         VectorCopy(ent->origin, light_pos);
     }
 
-    if(cls.ref_type == REF_TYPE_VKPT) {
+    if(REF_TYPE_IS_PATHTRACED(cls.ref_type)) {
         V_AddSpotLightTexEmission(light_pos, view_dir, cl_flashlight_intensity->value, 1.f, 1.f, 1.f, 90.0f, flashlight_profile_tex);
     } else {
         const int cent_num = cent_state ? cent_state->number : cl.frame.clientNum + 1;
@@ -677,7 +677,7 @@ void V_Init(void)
 	cl_show_lights = Cvar_Get("cl_show_lights", "0", 0);
     cl_flashlight = Cvar_Get("cl_flashlight", "0", 0);
     cl_flashlight_intensity = Cvar_Get("cl_flashlight_intensity", "20000", CVAR_ARCHIVE);
-    if(cls.ref_type == REF_TYPE_VKPT)
+    if(REF_TYPE_IS_PATHTRACED(cls.ref_type))
         flashlight_profile_tex = R_RegisterImage("flashlight_profile", IT_PIC, IF_PERMANENT | IF_BILERP);
     else
         flashlight_profile_tex = -1;

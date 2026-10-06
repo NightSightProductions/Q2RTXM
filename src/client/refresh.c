@@ -321,7 +321,7 @@ void CL_InitRefresh(void)
     // Create the video variables so we know how to start the graphics drivers
 
 	vid_rtx = Cvar_Get("vid_rtx", 
-#if REF_VKPT
+#if REF_VKPT || REF_MTLPT
 		"1",
 #else
 		"0",
@@ -342,17 +342,29 @@ void CL_InitRefresh(void)
 
     Com_SetLastError("No available video driver");
 
-#if REF_GL && REF_VKPT
-	if (vid_rtx->integer)
-		R_RegisterFunctionsRTX();
-	else
-		R_RegisterFunctionsGL();
-#elif REF_GL
-	R_RegisterFunctionsGL();
+    // Pick a path tracing backend when vid_rtx is set, otherwise fall back to
+    // the rasterizer. Metal takes priority over Vulkan where both are built.
+    bool want_rtx = vid_rtx->integer != 0;
+    (void)want_rtx;
+
+#if REF_MTLPT
+    if (want_rtx)
+        R_RegisterFunctionsMTL();
+    else
+#endif
+#if REF_VKPT
+    if (want_rtx)
+        R_RegisterFunctionsRTX();
+    else
+#endif
+#if REF_GL
+        R_RegisterFunctionsGL();
+#elif REF_MTLPT
+        R_RegisterFunctionsMTL();
 #elif REF_VKPT
-	R_RegisterFunctionsRTX();
+        R_RegisterFunctionsRTX();
 #else
-#error "REF_GL and REF_VKPT are both disabled, at least one has to be enableds"
+#error "No renderer enabled, at least one of REF_GL, REF_VKPT or REF_MTLPT is required"
 #endif
 
     // Try to initialize selected driver first
@@ -400,6 +412,11 @@ void CL_InitRefresh(void)
 
     cls.ref_type = ref_type;
     cls.ref_initialized = true;
+
+    // Which ray tracing API the running renderer uses, so the menu can show
+    // the Vulkan or the Metal options: 0 rasterizer, 1 Vulkan, 2 Metal.
+    cvar_t *vid_rtx_api = Cvar_Get("vid_rtx_api", "0", CVAR_ROM);
+    Cvar_SetByVar(vid_rtx_api, ref_type == REF_TYPE_MTLPT ? "2" : ref_type == REF_TYPE_VKPT ? "1" : "0", FROM_CODE);
 
     vid_geometry->changed = vid_geometry_changed;
     vid_fullscreen->changed = vid_fullscreen_changed;

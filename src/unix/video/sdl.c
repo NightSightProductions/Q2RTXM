@@ -36,6 +36,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../res/q2pro.xbm"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
+#if REF_MTLPT
+#include <SDL2/SDL_metal.h>
+#endif
 
 #ifdef _WINDOWS
 #include <ShellScalingAPI.h>
@@ -49,6 +52,9 @@ static struct {
     SDL_Window      *window;
 #if REF_GL
     SDL_GLContext   *context;
+#endif
+#if REF_MTLPT
+    SDL_MetalView   metal_view;
 #endif
     vidFlags_t      flags;
 
@@ -68,6 +74,16 @@ SDL_Window* get_sdl_window(void)
 {
     return sdl.window;
 }
+
+#if REF_MTLPT
+// Returns the CAMetalLayer backing the window, for the Metal renderer to draw into.
+void *get_metal_layer(void)
+{
+    if (!sdl.metal_view)
+        return NULL;
+    return SDL_Metal_GetLayer(sdl.metal_view);
+}
+#endif
 
 /*
 ===============================================================================
@@ -139,6 +155,10 @@ static void mode_changed(void)
     Uint32 flags = SDL_GetWindowFlags(sdl.window);
     if (flags & SDL_WINDOW_VULKAN)
         SDL_Vulkan_GetDrawableSize(sdl.window, &sdl.width, &sdl.height);
+#if REF_MTLPT
+    else if (flags & SDL_WINDOW_METAL)
+        SDL_Metal_GetDrawableSize(sdl.window, &sdl.width, &sdl.height);
+#endif
     else
         SDL_GL_GetDrawableSize(sdl.window, &sdl.width, &sdl.height);
 
@@ -158,6 +178,13 @@ static void set_mode(void)
     int freq;
 
     if (vid_fullscreen->integer) {
+        // Changing from one fullscreen mode to another: with the window
+        // already fullscreen, SDL_SetWindowFullscreen below does not resize
+        // it on macOS, so it keeps its old size inside the new display mode
+        // (a small box in the corner). Leave fullscreen first.
+        if (SDL_GetWindowFlags(sdl.window) & SDL_WINDOW_FULLSCREEN)
+            SDL_SetWindowFullscreen(sdl.window, 0);
+
         // move the window onto the selected display
         SDL_Rect display_bounds;
         SDL_GetDisplayBounds(vid_display->integer, &display_bounds);
@@ -177,6 +204,10 @@ static void set_mode(void)
             flags = SDL_WINDOW_FULLSCREEN_DESKTOP;
         }
     } else {
+        // Leave fullscreen before applying the window geometry: leaving it
+        // afterwards restores the window to its pre-fullscreen frame (and
+        // that size would then be saved as the new geometry).
+        SDL_SetWindowFullscreen(sdl.window, 0);
         if (VID_GetGeometry(&rc)) {
             SDL_SetWindowSize(sdl.window, rc.width, rc.height);
             SDL_SetWindowPosition(sdl.window, rc.x, rc.y);
@@ -325,6 +356,11 @@ static void sdl_shutdown(void)
         SDL_GL_DeleteContext(sdl.context);
 #endif
 
+#if REF_MTLPT
+    if (sdl.metal_view)
+        SDL_Metal_DestroyView(sdl.metal_view);
+#endif
+
     if (sdl.window)
         SDL_DestroyWindow(sdl.window);
 
@@ -363,11 +399,29 @@ static bool init(graphics_api_t api)
 		flags |= SDL_WINDOW_VULKAN;
 	}
 
+#if REF_MTLPT
+	if (api == GAPI_METAL)
+	{
+		flags |= SDL_WINDOW_METAL;
+	}
+#endif
+
 	sdl.window = SDL_CreateWindow(PRODUCT, rc.x, rc.y, rc.width, rc.height, flags);
     if (!sdl.window) {
         Com_EPrintf("Couldn't create SDL window: %s\n", SDL_GetError());
         goto fail;
     }
+
+#if REF_MTLPT
+	if (api == GAPI_METAL)
+	{
+		sdl.metal_view = SDL_Metal_CreateView(sdl.window);
+		if (!sdl.metal_view) {
+			Com_EPrintf("Couldn't create Metal view: %s\n", SDL_GetError());
+			goto fail;
+		}
+	}
+#endif
 
     SDL_SetWindowMinimumSize(sdl.window, 320, 240);
 
@@ -490,6 +544,13 @@ static void window_event(SDL_WindowEvent *event)
             rc.height = event->data2;
             VID_SetGeometry(&rc);
         }
+        break;
+
+    // Every size change, including the ones the game makes itself (display
+    // mode switches), which do not send SDL_WINDOWEVENT_RESIZED. SDL's Metal
+    // view resizes its layer's drawable on this event, so the renderer must
+    // follow it, or it keeps rendering the old size.
+    case SDL_WINDOWEVENT_SIZE_CHANGED:
         mode_changed();
         break;
     }

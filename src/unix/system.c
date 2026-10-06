@@ -209,6 +209,40 @@ Sys_IsFile(const char *path)
 	return false;
 }
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+
+// Inside "Quake II RTX.app" the game data lives in Contents/Resources next
+// to Contents/MacOS/q2rtx. Apps started from the Finder run with "/" as the
+// working directory, so the executable's location is used instead.
+static bool macos_bundle_basedir(char *out, size_t size)
+{
+    char exe[PATH_MAX], real[PATH_MAX];
+    uint32_t len = sizeof(exe);
+    if (_NSGetExecutablePath(exe, &len) != 0 || !realpath(exe, real))
+        return false;
+
+    char *slash = strrchr(real, '/');
+    if (!slash)
+        return false;
+    *slash = 0;     // .../Contents/MacOS
+
+    size_t n = strlen(real);
+    const char *suffix = "/Contents/MacOS";
+    size_t sn = strlen(suffix);
+    if (n < sn || strcmp(real + n - sn, suffix))
+        return false;
+    real[n - sn] = 0;   // .../Quake II RTX.app
+
+    return snprintf(out, size, "%s/Contents/Resources", real) < (int)size;
+}
+#else
+static bool macos_bundle_basedir(char *out, size_t size)
+{
+    return false;
+}
+#endif
+
 /*
 =================
 Sys_Init
@@ -236,7 +270,7 @@ void Sys_Init(void)
     dir_hnd = opendir(baseDirectory);
     if (dir_hnd) {
         closedir(dir_hnd);
-    } else {
+    } else if (!macos_bundle_basedir(baseDirectory, PATH_MAX)) {
         getcwd(baseDirectory, PATH_MAX);
     }
 

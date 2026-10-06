@@ -349,7 +349,7 @@ void CL_MuzzleFlash(void)
 	// Q2RTX
     }
 
-	if (cls.ref_type == REF_TYPE_VKPT)
+	if (REF_TYPE_IS_PATHTRACED(cls.ref_type))
 	{
 		// don't add muzzle flashes in RTX mode
 		dl->radius = 0;

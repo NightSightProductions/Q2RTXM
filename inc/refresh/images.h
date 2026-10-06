@@ -82,7 +82,7 @@ typedef struct image_s {
     float           sl, sh, tl, th;
 #endif
     float           aspect;
-#if REF_VKPT
+#if REF_VKPT || REF_MTLPT
     byte            *pix_data; // todo: add miplevels
     pixelformat_t   pixel_format; // pixel format (only supported by VKPT renderer)
     vec3_t          light_color; // use this color if this is a light source

@@ -581,7 +581,7 @@ static void CL_AddExplosions(void)
         if (ex->type == ex_free)
             continue;
 
-		if (cls.ref_type == REF_TYPE_VKPT)
+		if (REF_TYPE_IS_PATHTRACED(cls.ref_type))
 			CL_AddExplosionLight(ex, frac / (ex->frames - 1));
 		else
 		{
@@ -1279,7 +1279,7 @@ static void CL_RailTrail(void)
         }
     }
 
-    if (!cl_railtrail_type->integer || (cls.ref_type == REF_TYPE_VKPT && cvar_pt_beam_lights->value <= 0))
+    if (!cl_railtrail_type->integer || (REF_TYPE_IS_PATHTRACED(cls.ref_type) && cvar_pt_beam_lights->value <= 0))
     {
         CL_RailLights(rail_color);
     }

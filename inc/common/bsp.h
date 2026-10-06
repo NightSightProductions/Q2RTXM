@@ -51,7 +51,7 @@ typedef struct mtexinfo_s {  // used internally due to name len probs //ZOID
     int                 radiance;
     vec3_t              axis[2];
     vec2_t              offset;
-#if REF_VKPT
+#if REF_VKPT || REF_MTLPT
 	struct pbr_material_s *material;
 #endif
 #if REF_GL

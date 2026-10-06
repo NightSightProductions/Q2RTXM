@@ -17,7 +17,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "material.h"
+#if REF_VKPT
 #include "vkpt.h"
+#else
+// The material system is renderer agnostic; the Metal backend supplies the few
+// declarations that would otherwise come from vkpt.h.
+#include "../mtlpt/material_compat.h"
+#endif
 #include <common/prompt.h>
 
 #include <stdlib.h>

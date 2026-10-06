@@ -14,6 +14,13 @@
 #elif  _WIN32
 #define CPUSTRING "x86"
 #define BUILDSTRING "Win32"
+#elif __APPLE__
+#if __aarch64__
+#define CPUSTRING "aarch64"
+#else
+#define CPUSTRING "x86_64"
+#endif
+#define BUILDSTRING "macOS"
 #elif __aarch64__
 #define CPUSTRING "aarch64"
 #define BUILDSTRING "Linux"

@@ -20,7 +20,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define __FOG_H_
 
 #include <shared/shared.h>
+#if REF_VKPT
 #include "shader/global_ubo.h"
+#else
+// The Metal backend shares this file; its fog volume struct has the same layout.
+#include "../mtlpt/mtlpt_shared.h"
+typedef MTLFogVolume ShaderFogVolume;
+#endif
 
 typedef struct
 {
