@@ -6,9 +6,13 @@
 q2rtx
 q2rtxded
 game*.so
+game*.dylib
 *.swp
 build*/
 shader_vkpt
+shader_mtlpt
+*.metallib
+*.air
 *.exe
 *.ilk
 *.pdb
@@ -47,3 +51,7 @@ baseq2/**/*.txt
 !baseq2/*.txt
 !baseq2/maps/sky/*.txt
 !baseq2/pics/flashlight_profile.png
+
+# macOS installer build (setup/macos/build_installer.sh)
+/build-macos-dist/
+/Quake2RTX-macOS.dmg

@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches: [ master ]
+    tags: [ 'v*' ]          # also publishes the macOS installer as a release
   pull_request:
     branches: [ master ]
   
@@ -91,3 +92,118 @@ jobs:
           rogue/
           license.txt
           notice.txt
+
+  build-macos:
+    # Apple Silicon; produces the installer disk image (setup/macos).
+    # Optional signing and notarization use the MACOS_* repository secrets,
+    # see setup/macos/build_installer.sh and the steps below.
+    runs-on: macos-15
+    permissions:
+      contents: write       # publishes releases for version tags
+    env:
+      HAS_SIGNING: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.MACOS_SIGN_IDENTITY != '' }}
+      HAS_NOTARY: ${{ secrets.MACOS_NOTARY_APPLE_ID != '' }}
+      # CMake 4 rejects the old minimum versions of some bundled libraries.
+      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+      # Media and shareware demo files come from NVIDIA's release, like the
+      # official installers (they are not in git).
+      Q2RTX_MEDIA_VERSION: 1.8.1
+
+    steps:
+    - name: Setup variables
+      uses: actions/github-script@v7
+      with:
+        script: core.exportVariable('GITHUB_SHA_SHORT', context.sha.substring(0, 7))
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0          # git describe for the app version
+
+    - name: Tools
+      run: |
+        brew install ninja
+        # Recent Xcode versions ship the Metal compiler as a separate component.
+        xcrun -sdk macosx metal --version || xcodebuild -downloadComponent MetalToolchain
+        xcrun -sdk macosx metal --version
+
+    - name: Cache release media
+      id: media
+      uses: actions/cache@v4
+      with:
+        path: media
+        key: q2rtx-media-${{ env.Q2RTX_MEDIA_VERSION }}
+
+    - name: Download release media
+      if: steps.media.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p media
+        curl -fsSL "https://github.com/NVIDIA/Q2RTX/releases/download/v${Q2RTX_MEDIA_VERSION}/q2rtx-${Q2RTX_MEDIA_VERSION}-linux.tar.gz" |
+          tar xz -C media --strip-components 1 \
+            q2rtx/baseq2/q2rtx_media.pkz q2rtx/baseq2/blue_noise.pkz q2rtx/baseq2/pak0.pak q2rtx/baseq2/players
+
+    - name: Place media
+      run: |
+        cp media/baseq2/q2rtx_media.pkz media/baseq2/blue_noise.pkz baseq2/
+        mkdir -p baseq2/shareware
+        cp media/baseq2/pak0.pak baseq2/shareware/
+        cp -R media/baseq2/players baseq2/shareware/
+
+    - name: Import signing certificate
+      if: env.HAS_SIGNING == 'true'
+      env:
+        MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+        MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      run: |
+        KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+        KEYCHAIN_PASSWORD="$(uuidgen)"
+        echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+        security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+        security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+        security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+        rm "$RUNNER_TEMP/cert.p12"
+
+    - name: Build installer
+      env:
+        SIGN_ID: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      run: |
+        [ -n "$SIGN_ID" ] || unset SIGN_ID     # ad hoc signature
+        setup/macos/build_installer.sh "$PWD/build-macos-dist"
+
+    - name: Notarize
+      if: env.HAS_SIGNING == 'true' && env.HAS_NOTARY == 'true'
+      env:
+        SIGN_ID: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+        MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+        MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+      run: |
+        DMG=build-macos-dist/Quake2RTX-macOS.dmg
+        codesign --sign "$SIGN_ID" --timestamp "$DMG"
+        xcrun notarytool submit "$DMG" --apple-id "$MACOS_NOTARY_APPLE_ID" --team-id "$MACOS_NOTARY_TEAM_ID" \
+          --password "$MACOS_NOTARY_PASSWORD" --wait
+        xcrun stapler staple "$DMG"
+
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: q2rtx-macos-arm64-${{env.GITHUB_SHA_SHORT}}
+        path: build-macos-dist/Quake2RTX-macOS.dmg
+        compression-level: 0
+        retention-days: 14      # ~1 GB per build
+
+    - name: Publish release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: build-macos-dist/Quake2RTX-macOS.dmg
+        body: |
+          Unofficial macOS (Apple Silicon) port of Quake II RTX with a Metal path tracer.
+
+          Requires macOS 27 and a Mac with Apple M3 or later.
+          Open Quake2RTX-macOS.dmg and run "Install Quake II RTX". It installs the game with the
+          Quake II shareware demo, or copies the game files from your own copy of the full game.

@@ -161,8 +161,18 @@ begin video
             "thick glass refraction" pt_thick_glass "disabled" 0 "photo mode only" 1 "enabled" 2
         pairs projection pt_projection perspective 0 panini 1 stereographic 2 cylindrical 3 equirectangular 4 mercator 5
         blank
+    endif
+
+    // vid_rtx_api: the ray tracing API of the running renderer (1 Vulkan, 2 Metal)
+    ifeq vid_rtx_api 1
 		pairs "multi-gpu support" sli "disabled" 0 "when available" 1
         pairs "ray tracing API" ray_tracing_api "automatic selection" "auto" "prefer KHR_ray_query" "query"  "prefer KHR_ray_tracing_pipeline" "pipeline"
+    endif
+    ifeq vid_rtx_api 2
+        pairs "ray tracing API" vid_rtx_api "metal" 2
+    endif
+
+    ifeq vid_rtx 1
         toggle "GPU profiler" profiler
     endif
 

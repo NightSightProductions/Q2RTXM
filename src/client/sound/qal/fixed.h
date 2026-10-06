@@ -18,7 +18,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define AL_ALEXT_PROTOTYPES
 
-#ifdef __APPLE__
+// The bundled openal-soft defines AL_LIBTYPE_STATIC and ships AL/ headers.
+// Only the system framework on Apple uses the OpenAL/ prefix.
+#if defined(__APPLE__) && !defined(AL_LIBTYPE_STATIC)
 #include <OpenAL/al.h>
 #include <OpenAL/alext.h>
 #include <OpenAL/efx.h>

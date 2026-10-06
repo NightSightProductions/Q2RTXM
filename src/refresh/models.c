@@ -356,7 +356,7 @@ qhandle_t R_RegisterModel(const char *name)
 
         char* extension = normalized + namelen - 4;
 #if REF_GL
-        bool try_md3 = cls.ref_type == REF_TYPE_VKPT || (cls.ref_type == REF_TYPE_GL && gl_use_hd_assets->integer);
+        bool try_md3 = REF_TYPE_IS_PATHTRACED(cls.ref_type) || (cls.ref_type == REF_TYPE_GL && gl_use_hd_assets->integer);
 #else
         bool try_md3 = true;
 #endif

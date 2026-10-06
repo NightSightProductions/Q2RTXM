@@ -25,15 +25,28 @@ execute_process(
 )
 
 
-OPTION(CONFIG_GL_RENDERER "Enable GL renderer" ON)
-OPTION(CONFIG_VKPT_RENDERER "Enable VKPT renderer" ON)
+IF(APPLE)
+    # Apple platforms have no Vulkan ray tracing, so the Metal backend is the
+    # path tracer there; the GL renderer is the "opengl" option (vid_rtx 0).
+    SET(DEFAULT_GL_RENDERER ON)
+    SET(DEFAULT_VKPT_RENDERER OFF)
+    SET(DEFAULT_MTLPT_RENDERER ON)
+ELSE()
+    SET(DEFAULT_GL_RENDERER ON)
+    SET(DEFAULT_VKPT_RENDERER ON)
+    SET(DEFAULT_MTLPT_RENDERER OFF)
+ENDIF()
+
+OPTION(CONFIG_GL_RENDERER "Enable GL renderer" ${DEFAULT_GL_RENDERER})
+OPTION(CONFIG_VKPT_RENDERER "Enable VKPT renderer" ${DEFAULT_VKPT_RENDERER})
+OPTION(CONFIG_MTLPT_RENDERER "Enable Metal path tracing renderer" ${DEFAULT_MTLPT_RENDERER})
 OPTION(CONFIG_VKPT_ENABLE_DEVICE_GROUPS "Enable device groups (multi-gpu) support" ON)
 OPTION(CONFIG_VKPT_ENABLE_IMAGE_DUMPS "Enable image dumping functionality" OFF)
 OPTION(CONFIG_USE_CURL "Use CURL for HTTP support" ON)
 OPTION(CONFIG_LINUX_PACKAGING_SUPPORT "Enable Linux Packaging support" OFF)
 OPTION(CONFIG_LINUX_PACKAGING_SKIP_PKZ "Skip zipping the game contents into .pkz when packaging (for quicker iteration)" OFF)
 OPTION(CONFIG_LINUX_STEAM_RUNTIME_SUPPORT "Enable Linux Steam Runtime support" OFF)
-IF(WIN32)
+IF(WIN32 OR NOT CONFIG_VKPT_RENDERER)
     SET(DEFAULT_BUILD_GLSLANG OFF)
 ELSE()
     SET(DEFAULT_BUILD_GLSLANG ON)

@@ -299,6 +299,45 @@ SET(HEADERS_VKPT
 	refresh/vkpt/conversion.h
 )
 
+SET(SRC_MTLPT
+	refresh/mtlpt/device.m
+	refresh/mtlpt/bloom.m
+	refresh/mtlpt/debug.m
+	refresh/mtlpt/draw.m
+	refresh/mtlpt/freecam.m
+	refresh/mtlpt/main.m
+	refresh/mtlpt/material_support.m
+	refresh/mtlpt/models.m
+	refresh/mtlpt/path_tracer.m
+	refresh/mtlpt/physical_sky.m
+	refresh/mtlpt/profiler.m
+	refresh/mtlpt/textures.m
+	refresh/mtlpt/tone_mapping.m
+)
+
+SET(HEADERS_MTLPT
+	refresh/mtlpt/mtlpt.h
+	refresh/mtlpt/mtlpt_metal.h
+	refresh/mtlpt/mtlpt_shared.h
+	refresh/mtlpt/mtlpt_vkpt.h
+	refresh/mtlpt/material_compat.h
+	refresh/mtlpt/physical_sky.h
+)
+
+SET(SRC_MTLPT_SHADERS
+	refresh/mtlpt/shader/stretch_pic.metal
+	refresh/mtlpt/shader/final_blit.metal
+	refresh/mtlpt/shader/path_tracer.metal
+	refresh/mtlpt/shader/asvgf.metal
+	refresh/mtlpt/shader/taa.metal
+	refresh/mtlpt/shader/bloom.metal
+	refresh/mtlpt/shader/tone_mapping.metal
+	refresh/mtlpt/shader/god_rays.metal
+	refresh/mtlpt/shader/fsr.metal
+	refresh/mtlpt/shader/debug_line.metal
+	refresh/mtlpt/shader/physical_sky.metal
+)
+
 set(SRC_SHADERS
 	refresh/vkpt/shader/animate_materials.comp
 	refresh/vkpt/shader/god_rays_filter.comp
@@ -353,7 +392,7 @@ set(SRC_RT_SHADERS
 
 # Only build shaders in 64-bit builds, because the client
 # is also only built for 64-bit systems.
-IF(IS_64_BIT)
+IF(IS_64_BIT AND CONFIG_VKPT_RENDERER)
     include(../cmake/compileShaders.cmake)
 
     foreach(s ${SRC_RT_SHADERS})
@@ -374,6 +413,47 @@ IF(IS_64_BIT)
     if(TARGET glslang-standalone)
         add_dependencies(shaders glslang-standalone)
     endif()
+ENDIF()
+
+# Metal shaders are compiled to .air objects and linked into a single metallib
+# that the renderer loads at startup through the game filesystem.
+IF(IS_64_BIT AND CONFIG_MTLPT_RENDERER)
+    SET(METAL_STANDARD "metal3.0" CACHE STRING "Metal language standard to compile shaders against")
+    # Pinned so a toolchain update cannot mix .air targets or require a newer OS.
+    SET(METAL_MIN_MACOS "14.0" CACHE STRING "Minimum macOS version for the Metal shaders")
+
+    set(metal_air_files "")
+    foreach(s ${SRC_MTLPT_SHADERS})
+        get_filename_component(shader_name ${s} NAME_WE)
+        set(air_file "${CMAKE_CURRENT_BINARY_DIR}/metal/${shader_name}.air")
+        add_custom_command(
+            OUTPUT ${air_file}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/metal"
+            COMMAND xcrun -sdk macosx metal -std=${METAL_STANDARD} -O2
+                    -mmacosx-version-min=${METAL_MIN_MACOS}
+                    -I "${CMAKE_CURRENT_SOURCE_DIR}/refresh/mtlpt"
+                    -c "${CMAKE_CURRENT_SOURCE_DIR}/${s}" -o ${air_file}
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${s}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/refresh/mtlpt/mtlpt_shared.h"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/refresh/mtlpt/mtlpt_vkpt.h"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/refresh/mtlpt/shader/vkpt_common.h"
+            COMMENT "Compiling Metal shader ${shader_name}"
+            VERBATIM
+        )
+        list(APPEND metal_air_files ${air_file})
+    endforeach()
+
+    set(metallib_file "${CMAKE_SOURCE_DIR}/baseq2/shader_mtlpt/q2rtx.metallib")
+    add_custom_command(
+        OUTPUT ${metallib_file}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/baseq2/shader_mtlpt"
+        COMMAND xcrun -sdk macosx metallib ${metal_air_files} -o ${metallib_file}
+        DEPENDS ${metal_air_files}
+        COMMENT "Linking q2rtx.metallib"
+        VERBATIM
+    )
+
+    add_custom_target(metal_shaders DEPENDS ${metallib_file})
 ENDIF()
 
 # Embed version number
@@ -486,11 +566,37 @@ IF (TARGET client)
         TARGET_COMPILE_DEFINITIONS(client PRIVATE USE_CURL=1)
     ENDIF()
 
-    add_dependencies(client shaders)
+    IF (TARGET shaders)
+        add_dependencies(client shaders)
+    ENDIF()
+    IF (TARGET metal_shaders)
+        add_dependencies(client metal_shaders)
+    ENDIF()
 
     IF (CONFIG_GL_RENDERER)
         TARGET_SOURCES(client PRIVATE ${SRC_GL} ${HEADERS_GL})
         TARGET_COMPILE_DEFINITIONS(client PRIVATE REF_GL=1 USE_REF=1)
+    ENDIF()
+
+    IF (CONFIG_MTLPT_RENDERER)
+        TARGET_SOURCES(client PRIVATE ${SRC_MTLPT} ${HEADERS_MTLPT} ${SRC_MTLPT_SHADERS})
+        TARGET_COMPILE_DEFINITIONS(client PRIVATE REF_MTLPT=1 USE_REF=1)
+        # The PBR material system is renderer agnostic and shared with the
+        # Vulkan backend, which owns it when both are compiled in.
+        IF (NOT CONFIG_VKPT_RENDERER)
+            TARGET_SOURCES(client PRIVATE refresh/vkpt/material.c refresh/vkpt/material.h
+                                          refresh/vkpt/fog.c refresh/vkpt/fog.h)
+        ENDIF()
+        # The Metal API is Objective-C; these files are compiled without ARC so
+        # Metal objects can live in plain C structs.
+        SET_SOURCE_FILES_PROPERTIES(${SRC_MTLPT} PROPERTIES COMPILE_FLAGS "-fno-objc-arc")
+        SET_SOURCE_FILES_PROPERTIES(${SRC_MTLPT_SHADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
+        TARGET_LINK_LIBRARIES(client
+            "-framework Metal"
+            "-framework QuartzCore"
+            "-framework Foundation"
+            "-framework CoreGraphics"
+        )
     ENDIF()
 
     IF (CONFIG_VKPT_RENDERER)
@@ -524,9 +630,9 @@ SOURCE_GROUP("server\\sources" FILES ${SRC_SERVER})
 SOURCE_GROUP("server\\headers" FILES ${HEADERS_SERVER})
 SOURCE_GROUP("common\\sources" FILES ${SRC_COMMON})
 SOURCE_GROUP("common\\headers" FILES ${HEADERS_COMMON})
-SOURCE_GROUP("refresh\\sources" FILES ${SRC_REFRESH} ${SRC_VKPT})
-SOURCE_GROUP("refresh\\headers" FILES ${HEADERS_VKPT})
-SOURCE_GROUP("refresh\\shaders" FILES ${SRC_SHADERS})
+SOURCE_GROUP("refresh\\sources" FILES ${SRC_REFRESH} ${SRC_VKPT} ${SRC_MTLPT})
+SOURCE_GROUP("refresh\\headers" FILES ${HEADERS_VKPT} ${HEADERS_MTLPT})
+SOURCE_GROUP("refresh\\shaders" FILES ${SRC_SHADERS} ${SRC_MTLPT_SHADERS})
 SOURCE_GROUP("shared\\sources" FILES ${SRC_SHARED})
 SOURCE_GROUP("windows\\sources" FILES ${SRC_WINDOWS})
 SOURCE_GROUP("windows\\headers" FILES ${HEADERS_WINDOWS})
@@ -576,7 +682,12 @@ if(TARGET client)
 endif()
 
 IF(UNIX)
-    TARGET_LINK_LIBRARIES(server dl rt m pthread)
+    IF(APPLE)
+        # macOS has no librt; the timer and dynamic loader APIs are in libSystem.
+        TARGET_LINK_LIBRARIES(server dl m pthread)
+    ELSE()
+        TARGET_LINK_LIBRARIES(server dl rt m pthread)
+    ENDIF()
     IF(TARGET client)
         TARGET_LINK_LIBRARIES(client m)
     ENDIF()
@@ -630,7 +741,7 @@ SET_TARGET_PROPERTIES(game
 )
 
 IF(IS_64_BIT)
-	IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+	IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
 		SET_TARGET_PROPERTIES(game
 			PROPERTIES
 			LIBRARY_OUTPUT_NAME "gameaarch64"

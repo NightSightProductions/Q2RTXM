@@ -1,16 +1,32 @@
-# Quake II RTX
+# Quake II RTX: Metal
 
-## Project Discontinued
+**Quake II RTX: Metal** is a native macOS port of Quake II RTX, bringing NVIDIA's 
+real-time path tracer to Apple Silicon through the Metal API.
 
-**This repository is no longer maintained.**
+The Metal renderer is a line-by-line translation of the Vulkan path tracer 
+to Metal ray tracing, with the same lighting, denoising, upscaling and 
+post-processing passes, so the game looks and behaves like the original.
 
-If you're looking for a downloadable installer for Quake II RTX, please visit the [Releases](https://github.com/NVIDIA/Q2RTX/releases) page.
+This is an unofficial community project. It is not affiliated with or endorsed 
+by NVIDIA, id Software or Bethesda. NVIDIA's original 
+[Quake II RTX repository](https://github.com/NVIDIA/Q2RTX) is no longer maintained.
 
-If you would like to make some improvements, feel free to fork this repository or look for other community projects based on Quake II RTX.
+## Playing on macOS
 
-<br>
-<br>
-<br>
+  1. Download `Quake2RTX-macOS.dmg` from the [Releases](https://github.com/NightSightProductions/Q2RTXM/releases) page.
+  2. Open it and run **Install Quake II RTX**. The installer sets up the game with the 
+     Quake II shareware demo, or copies the game files from your own copy of the full game.
+  3. Launch **Quake II RTX** from your Applications folder.
+
+Note: release builds are not notarized by Apple yet, so macOS blocks the installer the 
+first time it is opened. To allow it, go to **System Settings > Privacy & Security** and 
+click **Open Anyway**.
+
+Some settings worth knowing about on a Mac:
+  - **Dynamic resolution scaling** (Video > resolution scaling options) keeps the game at 
+    a target frame rate by adjusting the rendering resolution.
+  - **HDR** (Video > HDR options) works on displays with HDR enabled in 
+    **System Settings > Displays**.
 
 ## Original README
 
@@ -57,10 +73,14 @@ original game.
   - Sunlight with direct and indirect illumination
   - Volumetric lighting (god-rays)
 
-You can download functional builds of the game from [GitHub Releases](https://github.com/NVIDIA/Q2RTX/releases).
+**Quake II RTX: Metal** adds:
+  - A Metal path tracer with the complete feature set of the Vulkan renderer
+  - Native macOS app and installer
 
-Latest development builds can be found in the [Actions](https://github.com/NVIDIA/Q2RTX/actions/workflows/build.yml) tab.
-To run a development build, download the artifact, extract it and put `q2rtx_media.pkz`, `blue_noise.pkz` and the `pak*.pak` files from the original game into `baseq2/`.
+You can download functional builds of the game from [GitHub Releases](https://github.com/NightSightProductions/Q2RTXM/releases).
+
+Latest development builds can be found in the [Actions](https://github.com/NightSightProductions/Q2RTXM/actions/workflows/build.yml) tab.
+The macOS build is a complete installer disk image. To run a Windows or Linux development build, download the artifact, extract it and put `q2rtx_media.pkz`, `blue_noise.pkz` and the `pak*.pak` files from the original game into `baseq2/`.
 
 ## Additional Information
 
@@ -79,12 +99,15 @@ Also, some source files have comments that explain various parts of the renderer
   * [path_tracer.h](src/refresh/vkpt/shader/path_tracer.h) gives an overview of the path tracer
   * [tone_mapping_histogram.comp](src/refresh/vkpt/shader/tone_mapping_histogram.comp) explains the tone mapping solution 
 
+The Metal renderer lives in [src/refresh/mtlpt](src/refresh/mtlpt), with its shaders in 
+[src/refresh/mtlpt/shader](src/refresh/mtlpt/shader). They follow the structure of the 
+Vulkan renderer, so the comments above apply to them as well.
+
 
 ## Support and Feedback
 
-  * [GeForce.com Forums](https://forums.geforce.com/default/topic/1119082/geforce-rtx-20-series/quake-ii-rtx-installation-guide/)
-  * [Steam Community Hub](https://steamcommunity.com/app/1089130)
-  * [GitHub Issue Tracker](https://github.com/NVIDIA/Q2RTX/issues)
+  * [GitHub Issue Tracker](https://github.com/NightSightProductions/Q2RTXM/issues) for this port
+  * [Discord](https://discord.gg/GKacpbpyQb)
 
 ## System Requirements
 
@@ -94,15 +117,17 @@ recent ones).
 
 ### Operating System
 
-|             | Windows    | Linux                          |
-|-------------|------------|--------------------------------|
-| Min Version | Win 7 x64  | Ubuntu 16.04 x86_64 or aarch64 |
+|             | Windows    | Linux                          | macOS                       |
+|-------------|------------|--------------------------------|-----------------------------|
+| Min Version | Win 7 x64  | Ubuntu 16.04 x86_64 or aarch64 | macOS 27, Apple M3 or later |
 
 Note: only the Windows 10 version has been extensively tested.
 
 Note: distributions that are binary compatible with Ubuntu 16.04 should work as well.
 
 Note: Linux ppc64le is also known to work though not officially supported.
+
+Note: Intel Macs are not supported.
 
 ### Software
 
@@ -113,6 +138,14 @@ Note: Linux ppc64le is also known to work though not officially supported.
 | git <br> https://git-scm.com/downloads                  | 2.15        |
 | CMake <br> https://cmake.org/download/                  | 3.8         |
 | Vulkan SDK <br> https://www.lunarg.com/vulkan-sdk/      | 1.2.162     |
+
+On macOS, the Vulkan SDK and GPU drivers are not needed. Instead:
+
+|                                                         | Min Version |
+|---------------------------------------------------------|-------------|
+| Xcode, with the Metal Toolchain component <br> https://developer.apple.com/xcode/ | 16 |
+| CMake <br> https://cmake.org/download/                  | 3.8         |
+| Ninja <br> https://ninja-build.org                      | 1.10        |
 
 ## Submodules
 
@@ -129,7 +162,7 @@ Note: Linux ppc64le is also known to work though not officially supported.
 
   1. Clone the repository and its submodules from git :
 
-     `git clone --recursive https://github.com/NVIDIA/Q2RTX.git `
+     `git clone --recursive https://github.com/NightSightProductions/Q2RTXM.git `
 
   2. Create a build folder named `build` under the repository root (`Q2RTX/build`)     
 
@@ -155,6 +188,27 @@ Note: Linux ppc64le is also known to work though not officially supported.
      line:
 
      `cmake --build . `
+
+### Building on macOS
+
+  1. Install Xcode, then the Metal compiler, which recent Xcode versions download separately:
+
+     `xcodebuild -downloadComponent MetalToolchain`
+
+  2. Put `q2rtx_media.pkz` and `blue_noise.pkz` into `baseq2`, as in step 3 above.
+
+  3. Configure and build with Ninja:
+
+     `cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release`  
+     `cmake --build build`
+
+     This builds `q2rtx`, the game library and the Metal shader library 
+     (`baseq2/shader_mtlpt/q2rtx.metallib`). Run the game from the repository root.
+
+  4. To build the installer disk image, also put the Quake II shareware demo files 
+     (`pak0.pak` and the `players` folder) into `baseq2/shareware`, then run:
+
+     `setup/macos/build_installer.sh`
 
 ## Music Playback Support
 

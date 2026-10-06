@@ -19,7 +19,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #pragma once
 
-typedef enum { GAPI_OPENGL, GAPI_VULKAN } graphics_api_t;
+typedef enum { GAPI_OPENGL, GAPI_VULKAN, GAPI_METAL } graphics_api_t;
 
 typedef struct {
     const char *name;
